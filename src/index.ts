@@ -58,12 +58,14 @@ app.post('/api/admin/init-db', async (c) => {
                 type TEXT NOT NULL,
                 seed TEXT NOT NULL,
                 goal TEXT DEFAULT 'ENDER_DRAGON',
+                target_mob TEXT,
                 hardcore INTEGER DEFAULT 0,
                 set_seed INTEGER DEFAULT 0,
                 status TEXT NOT NULL DEFAULT 'CREATED',
                 created_at INTEGER NOT NULL,
                 ended_at INTEGER,
-                duration INTEGER
+                duration INTEGER,
+                completion_details TEXT
             )`),
             c.env.DB.prepare(`CREATE TABLE players (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -127,43 +129,43 @@ async function getStats(env: Bindings) {
 
     // 3. Get Leaderboard (Top 10)
     const { results: leaderboard } = await env.DB.prepare(`
-        SELECT r.id, r.duration, r.ended_at, p.minecraft_name, r.goal, r.hardcore
+        SELECT r.id, r.duration, r.ended_at, p.minecraft_name, r.goal, r.target_mob, r.hardcore
         FROM runs r 
         JOIN players p ON r.id = p.run_id 
         WHERE r.status = 'FINISHED' AND r.duration IS NOT NULL AND p.role = 'RUNNER' AND r.set_seed = 0
         ORDER BY r.duration ASC 
         LIMIT 10
-    `).all<{ id: string, duration: number, ended_at: number, minecraft_name: string, goal: string, hardcore: number }>();
+    `).all<{ id: string, duration: number, ended_at: number, minecraft_name: string, goal: string, target_mob: string, hardcore: number }>();
 
     // 3.1 Get Set Seed Leaderboard (Top 10)
     const { results: setSeedLeaderboard } = await env.DB.prepare(`
-        SELECT r.id, r.duration, r.ended_at, p.minecraft_name, r.goal, r.hardcore, r.seed
+        SELECT r.id, r.duration, r.ended_at, p.minecraft_name, r.goal, r.target_mob, r.hardcore, r.seed
         FROM runs r 
         JOIN players p ON r.id = p.run_id 
         WHERE r.status = 'FINISHED' AND r.duration IS NOT NULL AND p.role = 'RUNNER' AND r.set_seed = 1
         ORDER BY r.duration ASC 
         LIMIT 10
-    `).all<{ id: string, duration: number, ended_at: number, minecraft_name: string, goal: string, hardcore: number, seed: string }>();
+    `).all<{ id: string, duration: number, ended_at: number, minecraft_name: string, goal: string, target_mob: string, hardcore: number, seed: string }>();
 
     // 4. Get Recent Runs (Last 10)
     const { results: recentRuns } = await env.DB.prepare(`
-        SELECT r.id, r.duration, r.ended_at, p.minecraft_name, r.status, r.goal, r.hardcore, r.set_seed
+        SELECT r.id, r.duration, r.ended_at, p.minecraft_name, r.status, r.goal, r.target_mob, r.hardcore, r.set_seed
         FROM runs r 
         JOIN players p ON r.id = p.run_id 
         WHERE r.status = 'FINISHED' AND p.role = 'RUNNER'
         ORDER BY r.ended_at DESC 
         LIMIT 10
-    `).all<{ id: string, duration: number, ended_at: number, minecraft_name: string, status: string, goal: string, hardcore: number, set_seed: number }>();
+    `).all<{ id: string, duration: number, ended_at: number, minecraft_name: string, status: string, goal: string, target_mob: string, hardcore: number, set_seed: number }>();
 
     // 5. Get Active Run
     const activeRun = await env.DB.prepare(`
-        SELECT r.id, r.created_at, r.status, p.minecraft_name, r.goal, r.hardcore, r.set_seed
+        SELECT r.id, r.created_at, r.status, p.minecraft_name, r.goal, r.target_mob, r.hardcore, r.set_seed
         FROM runs r
         JOIN players p ON r.id = p.run_id
         WHERE r.status IN ('CREATED', 'STARTED', 'PAUSED') AND p.role = 'RUNNER'
         ORDER BY r.created_at DESC
         LIMIT 1
-    `).first<{ id: string, created_at: number, status: string, minecraft_name: string, goal: string, hardcore: number, set_seed: number }>();
+    `).first<{ id: string, created_at: number, status: string, minecraft_name: string, goal: string, target_mob: string, hardcore: number, set_seed: number }>();
 
     return {
         server_status: serverStatus,
@@ -217,12 +219,13 @@ app.get('/public-stats', async (c) => {
 // Initialize a new run
 app.post('/api/run/init', async (c) => {
     console.log('[API] /api/run/init called');
-    const { run_id, type, seed, players, goal, hardcore, set_seed } = await c.req.json<{
+    const { run_id, type, seed, players, goal, target_mob, hardcore, set_seed } = await c.req.json<{
         run_id: string;
         type: 'SOLO' | 'TEAM';
         seed: string;
         players: { name: string; role: 'RUNNER' | 'SPECTATOR' }[];
         goal?: string;
+        target_mob?: string;
         hardcore?: boolean;
         set_seed?: boolean;
     }>();
@@ -234,9 +237,9 @@ app.post('/api/run/init', async (c) => {
     try {
         const now = Date.now();
         await c.env.DB.prepare(
-            'INSERT INTO runs (id, type, seed, status, created_at, goal, hardcore, set_seed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO runs (id, type, seed, status, created_at, goal, target_mob, hardcore, set_seed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )
-            .bind(run_id, type, seed, 'CREATED', now, goal || 'ENDER_DRAGON', hardcore ? 1 : 0, set_seed ? 1 : 0)
+            .bind(run_id, type, seed, 'CREATED', now, goal || 'ENDER_DRAGON', target_mob || null, hardcore ? 1 : 0, set_seed ? 1 : 0)
             .run();
 
         const playerStmt = c.env.DB.prepare(
@@ -494,16 +497,16 @@ app.post('/api/server/restart', async (c) => {
 // Finish run
 app.post('/api/run/finish', async (c) => {
     console.log('[API] /api/run/finish called');
-    const { run_id } = await c.req.json<{ run_id: string }>();
+    const { run_id, completion_details } = await c.req.json<{ run_id: string; completion_details?: string }>();
 
     try {
         const now = Date.now();
 
-        // 1. Update status and ended_at
+        // 1. Update status, ended_at, and completion_details
         await c.env.DB.prepare(
-            'UPDATE runs SET status = ?, ended_at = ? WHERE id = ?'
+            'UPDATE runs SET status = ?, ended_at = ?, completion_details = ? WHERE id = ?'
         )
-            .bind('FINISHED', now, run_id)
+            .bind('FINISHED', now, completion_details || null, run_id)
             .run();
 
         // 2. Log END action
@@ -567,8 +570,10 @@ async function calculateStats(db: D1Database, runId: string) {
         created_at: number;
         ended_at: number;
         goal: string;
+        target_mob: string;
         hardcore: number;
         set_seed: number;
+        completion_details: string;
     }>();
 
     if (!run) throw new Error('Run not found');
@@ -613,8 +618,10 @@ async function calculateStats(db: D1Database, runId: string) {
         type: run.type,
         seed: run.seed,
         goal: run.goal,
+        target_mob: run.target_mob,
         hardcore: !!run.hardcore,
         set_seed: !!run.set_seed,
+        completion_details: run.completion_details,
         duration_ms: totalTimeMs,
         duration_formatted: formatDuration(totalTimeMs),
         players: players.results.map(p => p.minecraft_name),

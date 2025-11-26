@@ -50,6 +50,23 @@ Call this to reset the server for a new run. This stops the server, deletes the 
 ```
 *Returns `202 Accepted` immediately. The reset process continues in the background.*
 
+### 3. Restart Server (Set Seed)
+Call this to restart the server, optionally with a specific seed.
+
+- **URL**: `/api/server/restart`
+- **Method**: `POST`
+- **Body**:
+```json
+{
+  "seed": "optional-seed-string",
+  "is_set_seed": true // true if this is a set seed run
+}
+```
+- **Response**:
+```json
+{ "success": true, "message": "Server restart initiated" }
+```
+
 ### 3. Initialize Run
 Call this when the speedrun is set up (team/solo selected).
 

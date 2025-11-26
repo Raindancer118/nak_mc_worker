@@ -390,6 +390,10 @@
                 <option value="OBTAIN_COBBLESTONE">Cobblestone</option>
                 <option value="OBTAIN_WOODEN_PLANKS">Wooden Planks</option>
                 <option value="OBTAIN_DIAMOND">Diamond</option>
+                <option value="KILL_RANDOM_MOB">Kill Random Mob</option>
+                <option value="KILL_MONSTER">Kill Monster</option>
+                <option value="KILL_SELF">Kill Self</option>
+                <option value="KILL_ANY_MOB">Kill Any Mob</option>
             </select>
         </h2>
         <div class="leaderboard-container">
@@ -505,7 +509,7 @@
                 const playerNames = getPlayerNames(data.active_run);
 
                 let badgesHtml = '';
-                if (data.active_run.goal) badgesHtml += `<span class="badge goal">${formatGoal(data.active_run.goal)}</span>`;
+                if (data.active_run.goal) badgesHtml += `<span class="badge goal">${formatGoal(data.active_run.goal, data.active_run.target_mob)}</span>`;
                 if (data.active_run.hardcore) badgesHtml += `<span class="badge hardcore">HC</span>`;
                 if (data.active_run.set_seed) badgesHtml += `<span class="badge set-seed">SS</span>`;
 
@@ -561,7 +565,7 @@
                     const dateVal = run.ended_at || run.solved_at;
                     const dateStr = dateVal ? new Date(dateVal).toLocaleDateString() : '-';
 
-                    const goal = run.goal ? formatGoal(run.goal) : 'Any%';
+                    const goal = run.goal ? formatGoal(run.goal, run.target_mob) : 'Any%';
                     const hc = run.hardcore ? '<span class="badge hardcore" style="font-size: 0.6rem; padding: 2px 4px;">HC</span>' : '';
 
                     tr.innerHTML = `
@@ -587,7 +591,7 @@
                     const dateVal = run.ended_at || run.solved_at;
                     const dateStr = dateVal ? new Date(dateVal).toLocaleDateString() : '-';
 
-                    const goal = run.goal ? formatGoal(run.goal) : 'Any%';
+                    const goal = run.goal ? formatGoal(run.goal, run.target_mob) : 'Any%';
                     const hc = run.hardcore ? '<span class="badge hardcore" style="font-size: 0.6rem; padding: 2px 4px;">HC</span>' : '';
 
                     tr.innerHTML = `
@@ -636,7 +640,7 @@
                     else if (run.status === 'PAUSED') statusColor = 'var(--accent-red)';
                     else if (run.status === 'FAILED') statusColor = 'var(--accent-red)';
 
-                    const goal = run.goal ? formatGoal(run.goal) : 'Any%';
+                    const goal = run.goal ? formatGoal(run.goal, run.target_mob) : 'Any%';
                     let badges = `<span class="badge goal" style="font-size: 0.6rem; margin-left: 0;">${goal}</span>`;
                     if (run.hardcore) badges += ` <span class="badge hardcore" style="font-size: 0.6rem;">HC</span>`;
                     if (run.set_seed) badges += ` <span class="badge set-seed" style="font-size: 0.6rem;">SS</span>`;
@@ -672,8 +676,12 @@
             return 'Unknown';
         }
 
-        function formatGoal(goal) {
-            return goal.replace('OBTAIN_', '').replace(/_/g, ' ');
+        function formatGoal(goal, targetMob) {
+            let formatted = goal.replace('OBTAIN_', '').replace('KILL_', 'Kill ').replace(/_/g, ' ');
+            if (goal === 'KILL_RANDOM_MOB' && targetMob) {
+                formatted += ` (${targetMob})`;
+            }
+            return formatted;
         }
 
         function updateLiveTimer(startTime) {
