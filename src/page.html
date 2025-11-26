@@ -377,7 +377,21 @@
         </div>
 
         <!-- Leaderboard -->
-        <h2 class="section-title">Leaderboard</h2>
+        <h2 class="section-title">
+            Leaderboard
+            <select id="goal-filter"
+                style="margin-left: auto; background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--card-border); padding: 0.5rem; border-radius: 8px; font-family: var(--font-main);">
+                <option value="ALL">All Goals</option>
+                <option value="ENDER_DRAGON">Ender Dragon</option>
+                <option value="OBTAIN_NETHERITE_INGOT">Netherite Ingot</option>
+                <option value="OBTAIN_NETHERITE_ARMOR">Netherite Armor</option>
+                <option value="OBTAIN_BLAZE_ROD">Blaze Rod</option>
+                <option value="OBTAIN_OBSIDIAN">Obsidian</option>
+                <option value="OBTAIN_COBBLESTONE">Cobblestone</option>
+                <option value="OBTAIN_WOODEN_PLANKS">Wooden Planks</option>
+                <option value="OBTAIN_DIAMOND">Diamond</option>
+            </select>
+        </h2>
         <div class="leaderboard-container">
             <table>
                 <thead>
@@ -391,7 +405,29 @@
                 </thead>
                 <tbody id="leaderboard-body">
                     <tr>
-                        <td colspan="4" style="text-align: center; color: var(--text-secondary);">Loading...</td>
+                        <td colspan="5" style="text-align: center; color: var(--text-secondary);">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Set Seed Leaderboard -->
+        <h2 class="section-title">Set Seed Leaderboard</h2>
+        <div class="leaderboard-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Player(s)</th>
+                        <th>Goal</th>
+                        <th>Seed</th>
+                        <th>Time</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody id="set-seed-leaderboard-body">
+                    <tr>
+                        <td colspan="6" style="text-align: center; color: var(--text-secondary);">Loading...</td>
                     </tr>
                 </tbody>
             </table>
@@ -401,15 +437,15 @@
         <h2 class="section-title">Recent Attempts</h2>
         <div class="recent-runs-grid" id="recent-runs-grid">
             <!-- Populated by JS -->
-            ```
         </div>
     </div>
 
     <script>
         // Data injected by Worker
-        const INITIAL_DATA = {{STATS_PAYLOAD}};
+        const INITIAL_DATA = {{ STATS_PAYLOAD }};
         const API_URL = '/public-stats';
         let liveTimerInterval;
+        let currentData = null;
 
         async function fetchStats() {
             try {
@@ -417,27 +453,28 @@
                 const response = await fetch(API_URL);
                 if (!response.ok) throw new Error('Network response was not ok');
                 const data = await response.json();
+                currentData = data;
                 updateUI(data);
             } catch (error) {
                 console.error('Error fetching stats:', error);
-                // Don't show offline immediately on error if we have stale data, 
-                // but maybe show a small indicator? For now, let's just log it.
-                // If we really want to show offline:
-                // document.getElementById('server-status-text').textContent = 'OFFLINE';
-                // document.getElementById('server-status-dot').className = 'status-dot offline';
             }
         }
 
         function init() {
             if (INITIAL_DATA) {
+                currentData = INITIAL_DATA;
                 updateUI(INITIAL_DATA);
             } else {
-                // Fallback if SSR failed
                 fetchStats();
             }
 
             // Update every 30 seconds
             setInterval(fetchStats, 30000);
+
+            // Filter listener
+            document.getElementById('goal-filter').addEventListener('change', () => {
+                if (currentData) updateUI(currentData);
+            });
         }
 
         function updateUI(data) {
@@ -465,7 +502,6 @@
             if (data.active_run) {
                 banner.style.display = 'block';
 
-                // Handle players (minecraft_name or players array)
                 const playerNames = getPlayerNames(data.active_run);
 
                 let badgesHtml = '';
@@ -475,7 +511,6 @@
 
                 document.getElementById('active-players').innerHTML = `${playerNames} ${badgesHtml}`;
 
-                // Status & Spectate Info
                 const statusDiv = document.getElementById('active-run-status');
                 if (!statusDiv) {
                     const statusContainer = document.createElement('div');
@@ -496,8 +531,6 @@
                 }
                 statusEl.innerHTML = statusHtml;
 
-                // Start local timer
-                // Prefer start_time, but if missing, we can't really show a timer unless we have duration
                 if (!liveTimerInterval && data.active_run.start_time) {
                     const startTime = data.active_run.start_time;
                     updateLiveTimer(startTime);
@@ -514,11 +547,17 @@
             // Leaderboard
             const tbody = document.getElementById('leaderboard-body');
             tbody.innerHTML = '';
-            if (data.leaderboard && Array.isArray(data.leaderboard) && data.leaderboard.length > 0) {
-                data.leaderboard.forEach((run, index) => {
+
+            const filterGoal = document.getElementById('goal-filter').value;
+            let filteredLeaderboard = data.leaderboard || [];
+            if (filterGoal !== 'ALL') {
+                filteredLeaderboard = filteredLeaderboard.filter(r => r.goal === filterGoal);
+            }
+
+            if (filteredLeaderboard.length > 0) {
+                filteredLeaderboard.forEach((run, index) => {
                     const tr = document.createElement('tr');
                     const players = getPlayerNames(run);
-                    // Use ended_at or solved_at
                     const dateVal = run.ended_at || run.solved_at;
                     const dateStr = dateVal ? new Date(dateVal).toLocaleDateString() : '-';
 
@@ -535,7 +574,34 @@
                     tbody.appendChild(tr);
                 });
             } else {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">No completed runs yet</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">No runs found</td></tr>';
+            }
+
+            // Set Seed Leaderboard
+            const ssTbody = document.getElementById('set-seed-leaderboard-body');
+            ssTbody.innerHTML = '';
+            if (data.set_seed_leaderboard && Array.isArray(data.set_seed_leaderboard) && data.set_seed_leaderboard.length > 0) {
+                data.set_seed_leaderboard.forEach((run, index) => {
+                    const tr = document.createElement('tr');
+                    const players = getPlayerNames(run);
+                    const dateVal = run.ended_at || run.solved_at;
+                    const dateStr = dateVal ? new Date(dateVal).toLocaleDateString() : '-';
+
+                    const goal = run.goal ? formatGoal(run.goal) : 'Any%';
+                    const hc = run.hardcore ? '<span class="badge hardcore" style="font-size: 0.6rem; padding: 2px 4px;">HC</span>' : '';
+
+                    tr.innerHTML = `
+                        <td class="rank">#${index + 1}</td>
+                        <td class="player-name">${players} ${hc}</td>
+                        <td><span class="badge goal" style="font-size: 0.6rem; margin-left: 0;">${goal}</span></td>
+                        <td style="font-family: var(--font-mono); font-size: 0.8rem;">${run.seed}</td>
+                        <td class="time">${run.duration_formatted || 'N/A'}</td>
+                        <td style="color: var(--text-secondary)">${dateStr}</td>
+                    `;
+                    ssTbody.appendChild(tr);
+                });
+            } else {
+                ssTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">No set seed runs yet</td></tr>';
             }
 
             // Recent Runs
@@ -547,7 +613,6 @@
                 runsToShow = [...data.recent_runs];
             }
 
-            // If there is an active run, prepend it to the list if it's not already there
             if (data.active_run) {
                 const activeId = data.active_run.id || data.active_run.run_id;
                 const exists = runsToShow.find(r => (r.id || r.run_id) === activeId);
@@ -562,15 +627,14 @@
                     card.className = 'run-card';
                     const isFinished = run.status === 'FINISHED' || !!run.ended_at;
                     const players = getPlayerNames(run);
-                    // Use start_time or ended_at
                     const dateVal = run.start_time || run.ended_at;
                     const dateStr = dateVal ? new Date(dateVal).toLocaleString() : 'Unknown Date';
 
-                    // Status color
                     let statusColor = 'var(--text-secondary)';
                     if (isFinished) statusColor = 'var(--accent-green)';
                     else if (run.status === 'RUNNING') statusColor = 'var(--accent-purple)';
                     else if (run.status === 'PAUSED') statusColor = 'var(--accent-red)';
+                    else if (run.status === 'FAILED') statusColor = 'var(--accent-red)';
 
                     const goal = run.goal ? formatGoal(run.goal) : 'Any%';
                     let badges = `<span class="badge goal" style="font-size: 0.6rem; margin-left: 0;">${goal}</span>`;

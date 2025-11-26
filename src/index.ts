@@ -36,6 +36,12 @@ app.use('/api/*', async (c, next) => {
     }
 
     await next();
+    await next();
+});
+
+// Health Check
+app.get('/api/health', (c) => {
+    return c.json({ status: 'OK' });
 });
 
 // Initialize Database
@@ -130,6 +136,16 @@ async function getStats(env: Bindings) {
         LIMIT 10
     `).all<{ id: string, duration: number, ended_at: number, minecraft_name: string, goal: string, hardcore: number }>();
 
+    // 3.1 Get Set Seed Leaderboard (Top 10)
+    const { results: setSeedLeaderboard } = await env.DB.prepare(`
+        SELECT r.id, r.duration, r.ended_at, p.minecraft_name, r.goal, r.hardcore, r.seed
+        FROM runs r 
+        JOIN players p ON r.id = p.run_id 
+        WHERE r.status = 'FINISHED' AND r.duration IS NOT NULL AND p.role = 'RUNNER' AND r.set_seed = 1
+        ORDER BY r.duration ASC 
+        LIMIT 10
+    `).all<{ id: string, duration: number, ended_at: number, minecraft_name: string, goal: string, hardcore: number, seed: string }>();
+
     // 4. Get Recent Runs (Last 10)
     const { results: recentRuns } = await env.DB.prepare(`
         SELECT r.id, r.duration, r.ended_at, p.minecraft_name, r.status, r.goal, r.hardcore, r.set_seed
@@ -142,13 +158,13 @@ async function getStats(env: Bindings) {
 
     // 5. Get Active Run
     const activeRun = await env.DB.prepare(`
-        SELECT r.id, r.created_at, r.status, p.minecraft_name
+        SELECT r.id, r.created_at, r.status, p.minecraft_name, r.goal, r.hardcore, r.set_seed
         FROM runs r
         JOIN players p ON r.id = p.run_id
         WHERE r.status IN ('CREATED', 'STARTED', 'PAUSED') AND p.role = 'RUNNER'
         ORDER BY r.created_at DESC
         LIMIT 1
-    `).first<{ id: string, created_at: number, status: string, minecraft_name: string }>();
+    `).first<{ id: string, created_at: number, status: string, minecraft_name: string, goal: string, hardcore: number, set_seed: number }>();
 
     return {
         server_status: serverStatus,
@@ -157,6 +173,10 @@ async function getStats(env: Bindings) {
             finished_runs: finishedRuns?.count || 0
         },
         leaderboard: leaderboard.map(r => ({
+            ...r,
+            duration_formatted: formatDuration(r.duration)
+        })),
+        set_seed_leaderboard: setSeedLeaderboard.map(r => ({
             ...r,
             duration_formatted: formatDuration(r.duration)
         })),
@@ -373,6 +393,8 @@ app.post('/api/run/reset', async (c) => {
 // Restart Server
 app.post('/api/server/restart', async (c) => {
     console.log('[API] /api/server/restart called');
+    const { seed, is_set_seed } = await c.req.json<{ seed?: string; is_set_seed?: boolean }>().catch(() => ({ seed: undefined, is_set_seed: undefined }));
+
     let serverId = c.env.EXA_SERVER_ID?.trim();
     const secret = c.env.EXA_SECRET?.trim();
 
@@ -387,8 +409,59 @@ app.post('/api/server/restart', async (c) => {
 
     c.executionCtx.waitUntil((async () => {
         try {
-            await client.restartServer();
-            console.log('[API] Restart triggered via Exaroton API');
+            if (seed) {
+                console.log(`[API] Restarting with seed: ${seed} (Set Seed: ${is_set_seed})`);
+
+                // 1. Stop Server
+                await client.stopServer();
+
+                // 2. Wait for Offline
+                let status = await client.getServerStatus();
+                let attempts = 0;
+                while (status !== 0 && attempts < 100) {
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    status = await client.getServerStatus();
+                    attempts++;
+                }
+
+                if (status !== 0) {
+                    console.error('[API] Server failed to stop. Aborting seed update.');
+                    return;
+                }
+
+                // 3. Update server.properties
+                try {
+                    const propsContent = await client.getFileContent('server.properties');
+                    const lines = propsContent.split('\n');
+                    const newLines = lines.map(line => {
+                        if (line.startsWith('level-seed=')) {
+                            return `level-seed=${seed}`;
+                        }
+                        return line;
+                    });
+                    // If level-seed wasn't found, add it (though it should be there)
+                    if (!lines.some(l => l.startsWith('level-seed='))) {
+                        newLines.push(`level-seed=${seed}`);
+                    }
+
+                    await client.uploadFile('server.properties', newLines.join('\n'));
+                    console.log('[API] Updated server.properties with new seed');
+                } catch (e) {
+                    console.error('[API] Failed to update server.properties', e);
+                }
+
+                // 4. Delete World
+                await client.deleteFile('world');
+                await client.deleteFile('world_nether');
+                await client.deleteFile('world_the_end');
+
+                // 5. Start Server
+                await client.startServer();
+            } else {
+                // Standard restart
+                await client.restartServer();
+                console.log('[API] Restart triggered via Exaroton API');
+            }
         } catch (e) {
             console.error('[API] Background restart failed:', e);
         }

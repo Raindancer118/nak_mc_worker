@@ -104,4 +104,46 @@ export class ExarotonClient {
         console.log(`[Exaroton] Executing command: ${command}`);
         return this.request('command', 'POST', { command });
     }
+
+    async getFileContent(path: string) {
+        console.log(`[Exaroton] Getting file content for: ${path}`);
+        let url = `${this.baseUrl}/servers/${this.serverId}/files/data/${path}`;
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${this.apiToken}`
+            }
+        });
+
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`Exaroton API Error: ${response.status} ${text}`);
+        }
+        return await response.text();
+    }
+
+    async uploadFile(path: string, content: string) {
+        console.log(`[Exaroton] Uploading file: ${path}`);
+        // For file upload, the content-type might need to be different or it might be a PUT/POST with body.
+        // According to Exaroton API docs (assumed), it's usually PUT to files/data/{path} with text/plain or octet-stream.
+
+        let url = `${this.baseUrl}/servers/${this.serverId}/files/data/${path}`;
+        console.log(`[Exaroton] Request: PUT ${url}`);
+
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${this.apiToken}`,
+                'Content-Type': 'text/plain'
+            },
+            body: content
+        });
+
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`Exaroton API Error: ${response.status} ${text}`);
+        }
+        return true;
+    }
 }
