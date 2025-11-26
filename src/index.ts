@@ -1,13 +1,35 @@
+
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 
 type Bindings = {
     DB: D1Database;
+    API_SECRET: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
 
 app.use('/*', cors());
+
+// Authentication Middleware
+app.use('/api/*', async (c, next) => {
+    const apiKey = c.req.header('X-API-Key');
+    const validKey = c.env.API_SECRET;
+
+    // If no secret is set in env, we might want to fail open or closed. 
+    // Secure by default: fail if not set, or log a warning. 
+    // For this task, we assume it must be set.
+    if (!validKey) {
+        console.error("API_SECRET is not set in the environment!");
+        return c.json({ error: 'Server configuration error' }, 500);
+    }
+
+    if (!apiKey || apiKey !== validKey) {
+        return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    await next();
+});
 
 app.get('/', (c) => c.text('NAK Minecraft Speedrun Worker is running!'));
 
@@ -237,7 +259,7 @@ function formatDuration(ms: number): string {
     const seconds = Math.floor((ms / 1000) % 60);
     const minutes = Math.floor((ms / (1000 * 60)) % 60);
     const hours = Math.floor((ms / (1000 * 60 * 60)));
-    return `${hours}h ${minutes}m ${seconds}s`;
+    return `${hours}h ${minutes}m ${seconds} s`;
 }
 
 export default app;
