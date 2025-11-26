@@ -382,6 +382,7 @@
 
         async function fetchStats() {
             try {
+                console.log('[Frontend] Fetching stats update...');
                 const response = await fetch(API_URL);
                 if (!response.ok) throw new Error('Network response was not ok');
                 const data = await response.json();

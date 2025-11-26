@@ -52,6 +52,9 @@ app.post('/api/admin/init-db', async (c) => {
                 id TEXT PRIMARY KEY,
                 type TEXT NOT NULL,
                 seed TEXT NOT NULL,
+                goal TEXT DEFAULT 'ENDER_DRAGON',
+                hardcore INTEGER DEFAULT 0,
+                set_seed INTEGER DEFAULT 0,
                 status TEXT NOT NULL DEFAULT 'CREATED',
                 created_at INTEGER NOT NULL,
                 ended_at INTEGER,
@@ -119,23 +122,23 @@ async function getStats(env: Bindings) {
 
     // 3. Get Leaderboard (Top 10)
     const { results: leaderboard } = await env.DB.prepare(`
-        SELECT r.id, r.duration, r.ended_at, p.minecraft_name 
+        SELECT r.id, r.duration, r.ended_at, p.minecraft_name, r.goal, r.hardcore
         FROM runs r 
         JOIN players p ON r.id = p.run_id 
-        WHERE r.status = 'FINISHED' AND r.duration IS NOT NULL AND p.role = 'RUNNER'
+        WHERE r.status = 'FINISHED' AND r.duration IS NOT NULL AND p.role = 'RUNNER' AND r.set_seed = 0
         ORDER BY r.duration ASC 
         LIMIT 10
-    `).all<{ id: string, duration: number, ended_at: number, minecraft_name: string }>();
+    `).all<{ id: string, duration: number, ended_at: number, minecraft_name: string, goal: string, hardcore: number }>();
 
     // 4. Get Recent Runs (Last 10)
     const { results: recentRuns } = await env.DB.prepare(`
-        SELECT r.id, r.duration, r.ended_at, p.minecraft_name, r.status
+        SELECT r.id, r.duration, r.ended_at, p.minecraft_name, r.status, r.goal, r.hardcore, r.set_seed
         FROM runs r 
         JOIN players p ON r.id = p.run_id 
         WHERE r.status = 'FINISHED' AND p.role = 'RUNNER'
         ORDER BY r.ended_at DESC 
         LIMIT 10
-    `).all<{ id: string, duration: number, ended_at: number, minecraft_name: string, status: string }>();
+    `).all<{ id: string, duration: number, ended_at: number, minecraft_name: string, status: string, goal: string, hardcore: number, set_seed: number }>();
 
     // 5. Get Active Run
     const activeRun = await env.DB.prepare(`
@@ -166,6 +169,7 @@ async function getStats(env: Bindings) {
 }
 
 app.get('/', async (c) => {
+    console.log(`[Worker] Serving Status Page (SSR) to ${c.req.header('User-Agent') || 'Unknown'}`);
     try {
         const stats = await getStats(c.env);
         // Inject stats into HTML
@@ -178,6 +182,7 @@ app.get('/', async (c) => {
 });
 
 app.get('/public-stats', async (c) => {
+    console.log(`[Worker] Serving Public Stats API to ${c.req.header('User-Agent') || 'Unknown'}`);
     try {
         const stats = await getStats(c.env);
         return c.json(stats);
@@ -190,11 +195,14 @@ app.get('/public-stats', async (c) => {
 // Initialize a new run
 app.post('/api/run/init', async (c) => {
     console.log('[API] /api/run/init called');
-    const { run_id, type, seed, players } = await c.req.json<{
+    const { run_id, type, seed, players, goal, hardcore, set_seed } = await c.req.json<{
         run_id: string;
         type: 'SOLO' | 'TEAM';
         seed: string;
         players: { name: string; role: 'RUNNER' | 'SPECTATOR' }[];
+        goal?: string;
+        hardcore?: boolean;
+        set_seed?: boolean;
     }>();
 
     if (!run_id || !type || !seed || !players) {
@@ -204,9 +212,9 @@ app.post('/api/run/init', async (c) => {
     try {
         const now = Date.now();
         await c.env.DB.prepare(
-            'INSERT INTO runs (id, type, seed, status, created_at) VALUES (?, ?, ?, ?, ?)'
+            'INSERT INTO runs (id, type, seed, status, created_at, goal, hardcore, set_seed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         )
-            .bind(run_id, type, seed, 'CREATED', now)
+            .bind(run_id, type, seed, 'CREATED', now, goal || 'ENDER_DRAGON', hardcore ? 1 : 0, set_seed ? 1 : 0)
             .run();
 
         const playerStmt = c.env.DB.prepare(
@@ -248,6 +256,9 @@ app.post('/api/run/update-state', async (c) => {
                 break;
             case 'ABORT':
                 newStatus = 'ABORTED';
+                break;
+            case 'FAIL':
+                newStatus = 'FAILED';
                 break;
             default:
                 return c.json({ error: 'Invalid action' }, 400);
@@ -359,6 +370,33 @@ app.post('/api/run/reset', async (c) => {
     return c.json({ success: true, message: 'Server reset initiated in background' }, 202);
 });
 
+// Restart Server
+app.post('/api/server/restart', async (c) => {
+    console.log('[API] /api/server/restart called');
+    let serverId = c.env.EXA_SERVER_ID?.trim();
+    const secret = c.env.EXA_SECRET?.trim();
+
+    if (!serverId || !secret) {
+        return c.json({ error: 'Exaroton configuration missing' }, 500);
+    }
+
+    if (serverId.startsWith('#')) {
+        serverId = serverId.substring(1);
+    }
+    const client = new ExarotonClient(secret, serverId);
+
+    c.executionCtx.waitUntil((async () => {
+        try {
+            await client.restartServer();
+            console.log('[API] Restart triggered via Exaroton API');
+        } catch (e) {
+            console.error('[API] Background restart failed:', e);
+        }
+    })());
+
+    return c.json({ success: true, message: 'Server restart initiated' }, 202);
+});
+
 // Finish run
 app.post('/api/run/finish', async (c) => {
     console.log('[API] /api/run/finish called');
@@ -434,6 +472,9 @@ async function calculateStats(db: D1Database, runId: string) {
         seed: string;
         created_at: number;
         ended_at: number;
+        goal: string;
+        hardcore: number;
+        set_seed: number;
     }>();
 
     if (!run) throw new Error('Run not found');
@@ -477,6 +518,9 @@ async function calculateStats(db: D1Database, runId: string) {
         run_id: run.id,
         type: run.type,
         seed: run.seed,
+        goal: run.goal,
+        hardcore: !!run.hardcore,
+        set_seed: !!run.set_seed,
         duration_ms: totalTimeMs,
         duration_formatted: formatDuration(totalTimeMs),
         players: players.results.map(p => p.minecraft_name),
