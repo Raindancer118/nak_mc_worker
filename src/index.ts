@@ -442,7 +442,10 @@ app.post('/api/server/restart', async (c) => {
 
                 // 3. Update server.properties
                 try {
+                    console.log('[API] Fetching server.properties...');
                     const propsContent = await client.getFileContent('server.properties');
+                    console.log('[API] server.properties fetched. Length:', propsContent.length);
+
                     const lines = propsContent.split('\n');
                     const newLines = lines.map(line => {
                         if (line.startsWith('level-seed=')) {
@@ -450,12 +453,14 @@ app.post('/api/server/restart', async (c) => {
                         }
                         return line;
                     });
-                    // If level-seed wasn't found, add it (though it should be there)
+                    // If level-seed wasn't found, add it
                     if (!lines.some(l => l.startsWith('level-seed='))) {
                         newLines.push(`level-seed=${seed}`);
                     }
 
-                    await client.uploadFile('server.properties', newLines.join('\n'));
+                    const newContent = newLines.join('\n');
+                    console.log('[API] Uploading new server.properties...');
+                    await client.uploadFile('server.properties', newContent);
                     console.log('[API] Updated server.properties with new seed');
                 } catch (e) {
                     console.error('[API] Failed to update server.properties', e);
@@ -464,11 +469,14 @@ app.post('/api/server/restart', async (c) => {
                 }
 
                 // 4. Delete World
+                console.log('[API] Deleting world files...');
                 await client.deleteFile('world');
                 await client.deleteFile('world_nether');
                 await client.deleteFile('world_the_end');
+                console.log('[API] World files deleted.');
 
                 // 5. Start Server
+                console.log('[API] Starting server...');
                 await client.startServer();
             } else {
                 // Standard restart
