@@ -2,7 +2,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { ExarotonClient } from './exaroton';
-import { getHtml } from './html';
 
 type Bindings = {
     DB: D1Database;
@@ -91,39 +90,82 @@ app.post('/api/admin/init-db', async (c) => {
     }
 });
 
-app.get('/', async (c) => {
-    console.log('[API] / (root) called');
+app.get('/public-stats', async (c) => {
     try {
-        const totalRuns = await c.env.DB.prepare('SELECT COUNT(*) as count FROM runs').first<{ count: number }>();
+        // 1. Get Server Status
+        let serverStatus = 'UNKNOWN';
+        try {
+            if (c.env.EXA_SECRET && c.env.EXA_SERVER_ID) {
+                let serverId = c.env.EXA_SERVER_ID.trim();
+                if (serverId.startsWith('#')) serverId = serverId.substring(1);
+                const client = new ExarotonClient(c.env.EXA_SECRET.trim(), serverId);
+                const status = await client.getServerStatus();
+                // Map status codes to text
+                const statusMap: Record<number, string> = {
+                    0: 'OFFLINE', 1: 'ONLINE', 2: 'STARTING', 3: 'STOPPING',
+                    4: 'RESTARTING', 5: 'SAVING', 6: 'LOADING', 7: 'CRASHED',
+                    8: 'PENDING', 10: 'PREPARING'
+                };
+                serverStatus = statusMap[status] || `UNKNOWN (${status})`;
+            }
+        } catch (e) {
+            console.error('Failed to fetch Exaroton status:', e);
+            serverStatus = 'ERROR';
+        }
 
-        const bestRun = await c.env.DB.prepare(`
-            SELECT r.duration, p.minecraft_name 
+        // 2. Get Totals
+        const totalRuns = await c.env.DB.prepare('SELECT COUNT(*) as count FROM runs').first<{ count: number }>();
+        const finishedRuns = await c.env.DB.prepare("SELECT COUNT(*) as count FROM runs WHERE status = 'FINISHED'").first<{ count: number }>();
+
+        // 3. Get Leaderboard (Top 10)
+        const { results: leaderboard } = await c.env.DB.prepare(`
+            SELECT r.id, r.duration, r.ended_at, p.minecraft_name 
             FROM runs r 
             JOIN players p ON r.id = p.run_id 
             WHERE r.status = 'FINISHED' AND r.duration IS NOT NULL AND p.role = 'RUNNER'
             ORDER BY r.duration ASC 
-            LIMIT 1
-        `).first<{ duration: number; minecraft_name: string }>();
+            LIMIT 10
+        `).all<{ id: string, duration: number, ended_at: number, minecraft_name: string }>();
 
-        const lastRun = await c.env.DB.prepare(`
-            SELECT r.duration, p.minecraft_name 
+        // 4. Get Recent Runs (Last 10)
+        const { results: recentRuns } = await c.env.DB.prepare(`
+            SELECT r.id, r.duration, r.ended_at, p.minecraft_name, r.status
             FROM runs r 
             JOIN players p ON r.id = p.run_id 
-            WHERE r.status = 'FINISHED' AND r.duration IS NOT NULL AND p.role = 'RUNNER'
+            WHERE r.status = 'FINISHED' AND p.role = 'RUNNER'
             ORDER BY r.ended_at DESC 
-            LIMIT 1
-        `).first<{ duration: number; minecraft_name: string }>();
+            LIMIT 10
+        `).all<{ id: string, duration: number, ended_at: number, minecraft_name: string, status: string }>();
 
-        return c.html(getHtml({
-            totalRuns: totalRuns?.count || 0,
-            bestTime: bestRun ? formatDuration(bestRun.duration) : '--:--',
-            bestPlayer: bestRun?.minecraft_name || '-',
-            lastRunTime: lastRun ? formatDuration(lastRun.duration) : '--:--',
-            lastRunPlayer: lastRun?.minecraft_name || '-'
-        }));
+        // 5. Get Active Run
+        const activeRun = await c.env.DB.prepare(`
+            SELECT r.id, r.created_at, r.status, p.minecraft_name
+            FROM runs r
+            JOIN players p ON r.id = p.run_id
+            WHERE r.status IN ('CREATED', 'STARTED', 'PAUSED') AND p.role = 'RUNNER'
+            ORDER BY r.created_at DESC
+            LIMIT 1
+        `).first<{ id: string, created_at: number, status: string, minecraft_name: string }>();
+
+        return c.json({
+            server_status: serverStatus,
+            totals: {
+                total_runs: totalRuns?.count || 0,
+                finished_runs: finishedRuns?.count || 0
+            },
+            leaderboard: leaderboard.map(r => ({
+                ...r,
+                duration_formatted: formatDuration(r.duration)
+            })),
+            recent_runs: recentRuns.map(r => ({
+                ...r,
+                duration_formatted: r.duration ? formatDuration(r.duration) : '-'
+            })),
+            active_run: activeRun || null
+        });
     } catch (e) {
         console.error(e);
-        return c.text('NAK Minecraft Speedrun Worker is running! (Stats unavailable)');
+        return c.json({ error: 'Failed to fetch stats' }, 500);
     }
 });
 

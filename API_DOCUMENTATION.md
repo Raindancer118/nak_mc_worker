@@ -20,7 +20,24 @@ Call this once to create the database tables.
 { "success": true, "message": "Database initialized" }
 ```
 
-### 1. Reset World & Restart Server
+### 1. Public Statistics
+Get global statistics and server status. No authentication required.
+
+- **URL**: `/public-stats`
+- **Method**: `GET`
+- **Body**: None
+- **Response**:
+```json
+{
+  "server_status": "ONLINE",
+  "totals": { "total_runs": 10, "finished_runs": 5 },
+  "leaderboard": [ ... ],
+  "recent_runs": [ ... ],
+  "active_run": null
+}
+```
+
+### 2. Reset World & Restart Server
 Call this to reset the server for a new run. This stops the server, deletes the world, and starts it again.
 
 - **URL**: `/api/run/reset`
@@ -31,7 +48,7 @@ Call this to reset the server for a new run. This stops the server, deletes the 
 { "success": true, "message": "Server reset initiated" }
 ```
 
-### 2. Initialize Run
+### 3. Initialize Run
 Call this when the speedrun is set up (team/solo selected).
 
 - **URL**: `/api/run/init`
