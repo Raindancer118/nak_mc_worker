@@ -34,52 +34,47 @@ app.use('/api/*', async (c, next) => {
 // Initialize Database
 app.post('/api/admin/init-db', async (c) => {
     try {
-        await c.env.DB.exec(`
-            DROP TABLE IF EXISTS cheat_logs;
-            DROP TABLE IF EXISTS time_logs;
-            DROP TABLE IF EXISTS players;
-            DROP TABLE IF EXISTS runs;
-            DROP TABLE IF EXISTS solved_seeds;
-
-            CREATE TABLE runs (
+        await c.env.DB.batch([
+            c.env.DB.prepare('DROP TABLE IF EXISTS cheat_logs'),
+            c.env.DB.prepare('DROP TABLE IF EXISTS time_logs'),
+            c.env.DB.prepare('DROP TABLE IF EXISTS players'),
+            c.env.DB.prepare('DROP TABLE IF EXISTS runs'),
+            c.env.DB.prepare('DROP TABLE IF EXISTS solved_seeds'),
+            c.env.DB.prepare(`CREATE TABLE runs (
                 id TEXT PRIMARY KEY,
-                type TEXT NOT NULL, -- 'SOLO' or 'TEAM'
+                type TEXT NOT NULL,
                 seed TEXT NOT NULL,
-                status TEXT NOT NULL DEFAULT 'CREATED', -- 'CREATED', 'RUNNING', 'PAUSED', 'FINISHED', 'ABORTED'
+                status TEXT NOT NULL DEFAULT 'CREATED',
                 created_at INTEGER NOT NULL,
                 ended_at INTEGER
-            );
-
-            CREATE TABLE players (
+            )`),
+            c.env.DB.prepare(`CREATE TABLE players (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 run_id TEXT NOT NULL,
                 minecraft_name TEXT NOT NULL,
-                role TEXT NOT NULL, -- 'RUNNER' or 'SPECTATOR'
+                role TEXT NOT NULL,
                 FOREIGN KEY (run_id) REFERENCES runs(id)
-            );
-
-            CREATE TABLE time_logs (
+            )`),
+            c.env.DB.prepare(`CREATE TABLE time_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 run_id TEXT NOT NULL,
-                action TEXT NOT NULL, -- 'START', 'PAUSE', 'RESUME', 'END'
+                action TEXT NOT NULL,
                 timestamp INTEGER NOT NULL,
                 FOREIGN KEY (run_id) REFERENCES runs(id)
-            );
-
-            CREATE TABLE cheat_logs (
+            )`),
+            c.env.DB.prepare(`CREATE TABLE cheat_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 run_id TEXT NOT NULL,
                 player_name TEXT NOT NULL,
                 details TEXT NOT NULL,
                 timestamp INTEGER NOT NULL,
                 FOREIGN KEY (run_id) REFERENCES runs(id)
-            );
-
-            CREATE TABLE solved_seeds (
+            )`),
+            c.env.DB.prepare(`CREATE TABLE solved_seeds (
                 seed TEXT PRIMARY KEY,
                 solved_at INTEGER NOT NULL
-            );
-        `);
+            )`)
+        ]);
         return c.json({ success: true, message: 'Database initialized' });
     } catch (e) {
         console.error(e);
