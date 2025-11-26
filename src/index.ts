@@ -1,10 +1,13 @@
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { ExarotonClient } from './exaroton';
 
 type Bindings = {
     DB: D1Database;
     API_SECRET: string;
+    EXA_SECRET: string;
+    EXA_SERVER_ID: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -185,6 +188,41 @@ app.post('/api/run/cheat', async (c) => {
         return c.json({ success: true });
     } catch (e) {
         return c.json({ error: 'Failed to log cheat' }, 500);
+    }
+});
+
+// Reset World and Restart Server
+app.post('/api/run/reset', async (c) => {
+    const client = new ExarotonClient(c.env.EXA_SECRET, c.env.EXA_SERVER_ID);
+
+    try {
+        // 1. Stop Server
+        await client.stopServer();
+
+        // 2. Wait for Offline
+        let status = await client.getServerStatus();
+        while (status !== 0) { // 0 = OFFLINE
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            status = await client.getServerStatus();
+        }
+
+        // 3. Delete World
+        // Note: Exaroton might require specific paths. Usually 'world' is the folder.
+        try {
+            await client.deleteFile('world');
+            await client.deleteFile('world_nether');
+            await client.deleteFile('world_the_end');
+        } catch (e) {
+            console.warn('Failed to delete some world files', e);
+        }
+
+        // 4. Start Server
+        await client.startServer();
+
+        return c.json({ success: true, message: 'Server reset initiated' });
+    } catch (e) {
+        console.error(e);
+        return c.json({ error: 'Failed to reset server' }, 500);
     }
 });
 

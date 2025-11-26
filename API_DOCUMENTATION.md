@@ -20,7 +20,18 @@ Call this once to create the database tables.
 { "success": true, "message": "Database initialized" }
 ```
 
-### 1. Initialize Run
+### 1. Reset World & Restart Server
+Call this to reset the server for a new run. This stops the server, deletes the world, and starts it again.
+
+- **URL**: `/api/run/reset`
+- **Method**: `POST`
+- **Body**: None
+- **Response**:
+```json
+{ "success": true, "message": "Server reset initiated" }
+```
+
+### 2. Initialize Run
 Call this when the speedrun is set up (team/solo selected).
 
 - **URL**: `/api/run/init`
