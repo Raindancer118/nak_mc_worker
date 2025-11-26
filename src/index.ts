@@ -373,43 +373,47 @@ app.post('/api/run/reset', async (c) => {
 
             // 3. Delete World
             console.log('[API] Deleting world files...');
-        } catch (e) {
-            console.warn('[API] Failed to delete some world files', e);
-        }
-
-        // 3.5 Clear Seed (Reset to Random)
-        try {
-            console.log('[API] Clearing seed in server.properties...');
-            const propsContent = await client.getFileContent('server.properties');
-            const lines = propsContent.split('\n');
-            let seedUpdated = false;
-            const newLines = lines.map(line => {
-                if (line.startsWith('level-seed=')) {
-                    seedUpdated = true;
-                    return `level-seed=`;
-                }
-                return line;
-            });
-            if (!seedUpdated) {
-                newLines.push(`level-seed=`);
+            try {
+                await client.deleteFile('world');
+                await client.deleteFile('world_nether');
+                await client.deleteFile('world_the_end');
+            } catch (e) {
+                console.warn('[API] Failed to delete some world files', e);
             }
-            await client.uploadFile('server.properties', newLines.join('\n'));
-            console.log('[API] Seed cleared.');
+
+            // 3.5 Clear Seed (Reset to Random)
+            try {
+                console.log('[API] Clearing seed in server.properties...');
+                const propsContent = await client.getFileContent('server.properties');
+                const lines = propsContent.split('\n');
+                let seedUpdated = false;
+                const newLines = lines.map(line => {
+                    if (line.startsWith('level-seed=')) {
+                        seedUpdated = true;
+                        return `level-seed=`;
+                    }
+                    return line;
+                });
+                if (!seedUpdated) {
+                    newLines.push(`level-seed=`);
+                }
+                await client.uploadFile('server.properties', newLines.join('\n'));
+                console.log('[API] Seed cleared.');
+            } catch (e) {
+                console.error('[API] Failed to clear seed:', e);
+            }
+
+            // 4. Start Server
+            console.log('[API] Starting server...');
+            await client.startServer();
+
+            console.log('[API] Reset completed successfully');
         } catch (e) {
-            console.error('[API] Failed to clear seed:', e);
+            console.error('[API] Background reset task failed:', e);
         }
+    })());
 
-        // 4. Start Server
-        console.log('[API] Starting server...');
-        await client.startServer();
-
-        console.log('[API] Reset completed successfully');
-    } catch (e) {
-        console.error('[API] Background reset task failed:', e);
-    }
-})());
-
-return c.json({ success: true, message: 'Server reset initiated in background' }, 202);
+    return c.json({ success: true, message: 'Server reset initiated in background' }, 202);
 });
 
 // Restart Server
