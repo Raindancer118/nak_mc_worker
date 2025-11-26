@@ -162,7 +162,7 @@ async function getStats(env: Bindings) {
         SELECT r.id, r.created_at, r.status, p.minecraft_name, r.goal, r.target_mob, r.hardcore, r.set_seed
         FROM runs r
         JOIN players p ON r.id = p.run_id
-        WHERE r.status IN ('CREATED', 'STARTED', 'PAUSED') AND p.role = 'RUNNER'
+        WHERE r.status IN ('CREATED', 'RUNNING', 'PAUSED') AND p.role = 'RUNNER'
         ORDER BY r.created_at DESC
         LIMIT 1
     `).first<{ id: string, created_at: number, status: string, minecraft_name: string, goal: string, target_mob: string, hardcore: number, set_seed: number }>();
