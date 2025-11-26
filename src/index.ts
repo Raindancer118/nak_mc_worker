@@ -292,42 +292,52 @@ app.post('/api/run/reset', async (c) => {
     }
     const client = new ExarotonClient(secret, serverId);
 
-    try {
-        // 1. Stop Server
-        console.log('[API] Stopping server...');
-        await client.stopServer();
-
-        // 2. Wait for Offline
-        console.log('[API] Waiting for server to be OFFLINE...');
-        let status = await client.getServerStatus();
-        while (status !== 0) { // 0 = OFFLINE
-            console.log(`[API] Server status: ${status} (waiting for 0)`);
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            status = await client.getServerStatus();
-        }
-        console.log('[API] Server is OFFLINE');
-
-        // 3. Delete World
-        // Note: Exaroton might require specific paths. Usually 'world' is the folder.
-        console.log('[API] Deleting world files...');
+    // Run reset logic in background
+    c.executionCtx.waitUntil((async () => {
         try {
-            await client.deleteRecursive('world');
-            await client.deleteRecursive('world_nether');
-            await client.deleteRecursive('world_the_end');
+            // 1. Stop Server
+            console.log('[API] Stopping server...');
+            await client.stopServer();
+
+            // 2. Wait for Offline
+            console.log('[API] Waiting for server to be OFFLINE...');
+            let status = await client.getServerStatus();
+            // Wait up to 5 minutes (100 attempts * 3 seconds)
+            let attempts = 0;
+            while (status !== 0 && attempts < 100) { // 0 = OFFLINE
+                console.log(`[API] Server status: ${status} (waiting for 0). Attempt ${attempts + 1}/100`);
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                status = await client.getServerStatus();
+                attempts++;
+            }
+
+            if (status !== 0) {
+                console.error('[API] Server failed to stop in time. Aborting reset.');
+                return;
+            }
+            console.log('[API] Server is OFFLINE');
+
+            // 3. Delete World
+            console.log('[API] Deleting world files...');
+            try {
+                await client.deleteRecursive('world');
+                await client.deleteRecursive('world_nether');
+                await client.deleteRecursive('world_the_end');
+            } catch (e) {
+                console.warn('[API] Failed to delete some world files', e);
+            }
+
+            // 4. Start Server
+            console.log('[API] Starting server...');
+            await client.startServer();
+
+            console.log('[API] Reset completed successfully');
         } catch (e) {
-            console.warn('[API] Failed to delete some world files', e);
+            console.error('[API] Background reset task failed:', e);
         }
+    })());
 
-        // 4. Start Server
-        console.log('[API] Starting server...');
-        await client.startServer();
-
-        console.log('[API] Reset initiated successfully');
-        return c.json({ success: true, message: 'Server reset initiated' });
-    } catch (e) {
-        console.error('[API] Failed to reset server:', e);
-        return c.json({ error: 'Failed to reset server' }, 500);
-    }
+    return c.json({ success: true, message: 'Server reset initiated in background' }, 202);
 });
 
 // Finish run

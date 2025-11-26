@@ -45,8 +45,9 @@ Call this to reset the server for a new run. This stops the server, deletes the 
 - **Body**: None
 - **Response**:
 ```json
-{ "success": true, "message": "Server reset initiated" }
+{ "success": true, "message": "Server reset initiated in background" }
 ```
+*Returns `202 Accepted` immediately. The reset process continues in the background.*
 
 ### 3. Initialize Run
 Call this when the speedrun is set up (team/solo selected).
