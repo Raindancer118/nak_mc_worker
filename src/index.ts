@@ -320,9 +320,10 @@ app.post('/api/run/reset', async (c) => {
             // 3. Delete World
             console.log('[API] Deleting world files...');
             try {
-                await client.deleteRecursive('world');
-                await client.deleteRecursive('world_nether');
-                await client.deleteRecursive('world_the_end');
+                // Try deleting directories directly (API might support it, and recursion hits subrequest limits)
+                await client.deleteFile('world');
+                await client.deleteFile('world_nether');
+                await client.deleteFile('world_the_end');
             } catch (e) {
                 console.warn('[API] Failed to delete some world files', e);
             }
