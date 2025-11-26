@@ -383,38 +383,11 @@ app.post('/api/run/reset', async (c) => {
 
             // 3.5 Clear Seed (Reset to Random)
             try {
-                console.log('[API] Clearing seed in server.properties...');
-                const propsContent = await client.getFileContent('server.properties');
-                const lines = propsContent.split('\n');
-                let seedUpdated = false;
-                const newLines = lines.map(line => {
-                    if (line.startsWith('level-seed=')) {
-                        seedUpdated = true;
-                        return `level-seed=`;
-                    }
-                    return line;
+                console.log('[API] Clearing seed via Config API...');
+                await client.updateConfig('server.properties', {
+                    'level-seed': ''
                 });
-                if (!seedUpdated) {
-                    newLines.push(`level-seed=`);
-                }
-
-                const newContent = newLines.join('\n');
-
-                // Strategy: Delete then Upload to ensure update
-                console.log('[API] Deleting old server.properties...');
-                await client.deleteFile('server.properties');
-
-                console.log('[API] Uploading new server.properties...');
-                await client.uploadFile('server.properties', newContent);
                 console.log('[API] Seed cleared.');
-
-                // Verify
-                const checkContent = await client.getFileContent('server.properties');
-                if (checkContent.includes('level-seed=') && !checkContent.match(/level-seed=.+/)) {
-                    console.log('[API] Verification successful: seed cleared.');
-                } else {
-                    console.error('[API] Verification FAILED: seed might not be cleared.');
-                }
             } catch (e) {
                 console.error('[API] Failed to clear seed:', e);
             }
@@ -480,42 +453,11 @@ app.post('/api/server/restart', async (c) => {
 
             // 3. Update server.properties
             try {
-                console.log('[API] Fetching server.properties...');
-                const propsContent = await client.getFileContent('server.properties');
-                console.log('[API] server.properties fetched. Length:', propsContent.length);
-
-                const lines = propsContent.split('\n');
-                let seedUpdated = false;
-                const newLines = lines.map(line => {
-                    if (line.startsWith('level-seed=')) {
-                        seedUpdated = true;
-                        return `level-seed=${seed || ''}`;
-                    }
-                    return line;
+                console.log('[API] Updating server.properties via Config API...');
+                await client.updateConfig('server.properties', {
+                    'level-seed': seed || ''
                 });
-                // If level-seed wasn't found, add it
-                if (!seedUpdated) {
-                    newLines.push(`level-seed=${seed || ''}`);
-                }
-
-                const newContent = newLines.join('\n');
-
-                // Strategy: Delete then Upload to ensure update
-                console.log('[API] Deleting old server.properties...');
-                await client.deleteFile('server.properties');
-
-                console.log('[API] Uploading new server.properties...');
-                await client.uploadFile('server.properties', newContent);
                 console.log(`[API] Updated server.properties (Seed: ${seed || 'CLEARED'})`);
-
-                // Verify
-                const checkContent = await client.getFileContent('server.properties');
-                if (checkContent.includes(`level-seed=${seed || ''}`)) {
-                    console.log('[API] Verification successful: server.properties updated.');
-                } else {
-                    console.error('[API] Verification FAILED: server.properties does not match expected seed.');
-                }
-
             } catch (e) {
                 console.error('[API] Failed to update server.properties', e);
                 console.error('[API] Aborting restart sequence to prevent wrong seed.');

@@ -74,6 +74,13 @@ export class ExarotonClient {
         return this.request(`files/data/${path}`, 'DELETE');
     }
 
+
+
+    async updateConfig(path: string, options: Record<string, any>) {
+        console.log(`[Exaroton] Updating config: ${path}`);
+        return this.request(`files/config/${path}`, 'POST', options);
+    }
+
     async deleteRecursive(path: string) {
         console.log(`[Exaroton] Deleting recursively: ${path}`);
         try {
