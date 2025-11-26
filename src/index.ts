@@ -283,7 +283,7 @@ app.post('/api/run/reset', async (c) => {
     const secret = c.env.EXA_SECRET?.trim();
 
     if (!serverId || !secret) {
-        console.error('[API] Exaroton configuration missing');
+        console.error(`[API] Exaroton configuration missing. ServerID: ${serverId ? 'SET' : 'MISSING'}, Secret: ${secret ? 'SET' : 'MISSING'}`);
         return c.json({ error: 'Exaroton configuration missing' }, 500);
     }
 
