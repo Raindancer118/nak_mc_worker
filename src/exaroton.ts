@@ -125,8 +125,6 @@ export class ExarotonClient {
 
     async uploadFile(path: string, content: string) {
         console.log(`[Exaroton] Uploading file: ${path}`);
-        // For file upload, the content-type might need to be different or it might be a PUT/POST with body.
-        // According to Exaroton API docs (assumed), it's usually PUT to files/data/{path} with text/plain or octet-stream.
 
         let url = `${this.baseUrl}/servers/${this.serverId}/files/data/${path}`;
         console.log(`[Exaroton] Request: PUT ${url}`);
@@ -135,7 +133,7 @@ export class ExarotonClient {
             method: 'PUT',
             headers: {
                 'Authorization': `Bearer ${this.apiToken}`,
-                'Content-Type': 'text/plain'
+                'Content-Type': 'application/octet-stream'
             },
             body: content
         });
@@ -144,6 +142,11 @@ export class ExarotonClient {
             const text = await response.text();
             throw new Error(`Exaroton API Error: ${response.status} ${text}`);
         }
+
+        // Log success response just in case it contains info
+        const data = await response.json().catch(() => null);
+        if (data) console.log(`[Exaroton] Upload Response: ${JSON.stringify(data)}`);
+
         return true;
     }
 }
