@@ -480,9 +480,23 @@ app.post('/api/server/restart', async (c) => {
                 }
 
                 const newContent = newLines.join('\n');
+
+                // Strategy: Delete then Upload to ensure update
+                console.log('[API] Deleting old server.properties...');
+                await client.deleteFile('server.properties');
+
                 console.log('[API] Uploading new server.properties...');
                 await client.uploadFile('server.properties', newContent);
                 console.log(`[API] Updated server.properties (Seed: ${seed || 'CLEARED'})`);
+
+                // Verify
+                const checkContent = await client.getFileContent('server.properties');
+                if (checkContent.includes(`level-seed=${seed || ''}`)) {
+                    console.log('[API] Verification successful: server.properties updated.');
+                } else {
+                    console.error('[API] Verification FAILED: server.properties does not match expected seed.');
+                }
+
             } catch (e) {
                 console.error('[API] Failed to update server.properties', e);
                 console.error('[API] Aborting restart sequence to prevent wrong seed.');
