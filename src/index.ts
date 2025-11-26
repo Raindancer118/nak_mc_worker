@@ -193,7 +193,7 @@ app.get('/status', async (c) => {
     try {
         const stats = await getStats(c.env);
         // Inject stats into HTML
-        const page = html.replace('{{STATS_PAYLOAD}}', JSON.stringify(stats));
+        const page = html.replace(/\{\{\s*STATS_PAYLOAD\s*\}\}/, JSON.stringify(stats));
         return c.html(page);
     } catch (e) {
         console.error(e);
