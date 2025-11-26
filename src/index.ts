@@ -183,7 +183,10 @@ async function getStats(env: Bindings) {
             ...r,
             duration_formatted: r.duration ? formatDuration(r.duration) : '-'
         })),
-        active_run: activeRun || null
+        active_run: activeRun ? {
+            ...activeRun,
+            start_time: activeRun.created_at
+        } : null
     };
 }
 
