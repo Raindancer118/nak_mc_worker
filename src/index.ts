@@ -193,7 +193,17 @@ app.post('/api/run/cheat', async (c) => {
 
 // Reset World and Restart Server
 app.post('/api/run/reset', async (c) => {
-    const client = new ExarotonClient(c.env.EXA_SECRET, c.env.EXA_SERVER_ID);
+    let serverId = c.env.EXA_SERVER_ID?.trim();
+    const secret = c.env.EXA_SECRET?.trim();
+
+    if (!serverId || !secret) {
+        return c.json({ error: 'Exaroton configuration missing' }, 500);
+    }
+
+    if (serverId.startsWith('#')) {
+        serverId = serverId.substring(1);
+    }
+    const client = new ExarotonClient(secret, serverId);
 
     try {
         // 1. Stop Server

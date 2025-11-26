@@ -9,7 +9,11 @@ export class ExarotonClient {
     }
 
     private async request(path: string, method: string = 'GET', body?: any) {
-        const url = `${this.baseUrl}/servers/${this.serverId}/${path}`;
+        let url = `${this.baseUrl}/servers/${this.serverId}`;
+        if (path) {
+            url += `/${path}`;
+        }
+        console.log(`Exaroton Request: ${method} ${url}`);
         const headers: Record<string, string> = {
             'Authorization': `Bearer ${this.apiToken}`,
             'Content-Type': 'application/json'
