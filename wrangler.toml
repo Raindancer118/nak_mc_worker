@@ -9,3 +9,7 @@ database_id = "901517dc-ca9e-4191-826b-c4f758e67c17"
 
 [vars]
 EXA_SERVER_ID = "eSvl0B5fnYiLUWbJ"
+
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]

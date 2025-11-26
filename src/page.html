@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NAK Speedrun Status</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0a0a0f;
+            --card-bg: rgba(255, 255, 255, 0.03);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0b0;
+            --accent-green: #00ff9d;
+            --accent-purple: #bd00ff;
+            --accent-red: #ff4545;
+            --glow-green: 0 0 20px rgba(0, 255, 157, 0.3);
+            --glow-purple: 0 0 20px rgba(189, 0, 255, 0.3);
+            --font-main: 'Outfit', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: var(--font-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            background-image:
+                radial-gradient(circle at 10% 20%, rgba(189, 0, 255, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(0, 255, 157, 0.1) 0%, transparent 40%);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .logo {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(45deg, var(--accent-green), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 50px;
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--text-secondary);
+            box-shadow: 0 0 5px var(--text-secondary);
+            transition: all 0.3s ease;
+        }
+
+        .status-dot.online {
+            background-color: var(--accent-green);
+            box-shadow: var(--glow-green);
+        }
+
+        .status-dot.offline {
+            background-color: var(--accent-red);
+            box-shadow: 0 0 5px var(--accent-red);
+        }
+
+        /* Active Run Banner */
+        #active-run-banner {
+            display: none;
+            /* Hidden by default */
+            background: linear-gradient(90deg, rgba(189, 0, 255, 0.1), rgba(0, 255, 157, 0.1));
+            border: 1px solid var(--accent-purple);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 3rem;
+            animation: pulse-border 2s infinite;
+        }
+
+        @keyframes pulse-border {
+            0% {
+                box-shadow: 0 0 0 0 rgba(189, 0, 255, 0.2);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(189, 0, 255, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(189, 0, 255, 0);
+            }
+        }
+
+        .active-run-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .active-run-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--accent-purple);
+            margin-bottom: 0.5rem;
+        }
+
+        .timer {
+            font-family: var(--font-mono);
+            font-size: 2.5rem;
+            font-weight: 700;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent-green);
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            background: linear-gradient(180deg, #fff, #ccc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Leaderboard */
+        .section-title {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .section-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, var(--card-border), transparent);
+        }
+
+        .leaderboard-container {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            overflow: hidden;
+            margin-bottom: 3rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 1rem 1.5rem;
+            text-align: left;
+        }
+
+        th {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+
+        tr {
+            border-bottom: 1px solid var(--card-border);
+            transition: background 0.2s ease;
+        }
+
+        tr:last-child {
+            border-bottom: none;
+        }
+
+        tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .rank {
+            font-family: var(--font-mono);
+            color: var(--accent-green);
+            font-weight: 700;
+        }
+
+        .player-name {
+            font-weight: 600;
+        }
+
+        .time {
+            font-family: var(--font-mono);
+            color: var(--text-primary);
+        }
+
+        /* Recent Runs */
+        .recent-runs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .run-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .run-info h4 {
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .run-date {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .run-time {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            color: var(--accent-green);
+        }
+
+        /* Loading State */
+        .loading {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .active-run-content {
+                flex-direction: column;
+                text-align: center;
+                gap: 1rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">NAK Speedrun</div>
+            <div class="status-badge">
+                <div id="server-status-dot" class="status-dot"></div>
+                <span id="server-status-text">CONNECTING...</span>
+            </div>
+        </header>
+
+        <!-- Active Run Banner -->
+        <div id="active-run-banner">
+            <div class="active-run-content">
+                <div>
+                    <div class="active-run-title">LIVE RUN IN PROGRESS</div>
+                    <div id="active-players" style="color: #fff; font-size: 1.1rem;">Player1 vs Player2</div>
+                </div>
+                <div class="timer" id="live-timer">00:00:00</div>
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Runs</div>
+                <div class="stat-value" id="total-runs">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Finished Runs</div>
+                <div class="stat-value" id="finished-runs">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Fastest Time</div>
+                <div class="stat-value" id="fastest-time">-</div>
+            </div>
+        </div>
+
+        <!-- Leaderboard -->
+        <h2 class="section-title">Leaderboard</h2>
+        <div class="leaderboard-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Player(s)</th>
+                        <th>Time</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboard-body">
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: var(--text-secondary);">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Recent Runs -->
+        <h2 class="section-title">Recent Attempts</h2>
+        <div class="recent-runs-grid" id="recent-runs-grid">
+            <!-- Populated by JS -->
+        </div>
+    </div>
+
+    <script>
+        // Data injected by Worker
+        const INITIAL_DATA = {{ STATS_PAYLOAD }};
+        let liveTimerInterval;
+
+        function init() {
+            if (INITIAL_DATA) {
+                updateUI(INITIAL_DATA);
+            } else {
+                // Fallback or error state
+                document.getElementById('server-status-text').textContent = 'ERROR LOADING DATA';
+                document.getElementById('server-status-dot').className = 'status-dot offline';
+            }
+        }
+
+        function updateUI(data) {
+            // Server Status
+            const statusText = document.getElementById('server-status-text');
+            const statusDot = document.getElementById('server-status-dot');
+            const isOnline = data.server_status === 'ONLINE';
+            statusText.textContent = data.server_status || 'UNKNOWN';
+            statusDot.className = `status-dot ${isOnline ? 'online' : 'offline'}`;
+
+            // Totals
+            if (data.totals) {
+                document.getElementById('total-runs').textContent = data.totals.total_runs || 0;
+                document.getElementById('finished-runs').textContent = data.totals.finished_runs || 0;
+
+                if (data.leaderboard && data.leaderboard.length > 0) {
+                    document.getElementById('fastest-time').textContent = data.leaderboard[0].duration_formatted || '--:--:--';
+                } else {
+                    document.getElementById('fastest-time').textContent = '--:--:--';
+                }
+            }
+
+            // Active Run
+            const banner = document.getElementById('active-run-banner');
+            if (data.active_run) {
+                banner.style.display = 'block';
+
+                // Handle players (minecraft_name or players array)
+                const playerNames = getPlayerNames(data.active_run);
+                document.getElementById('active-players').textContent = playerNames;
+
+                // Status & Spectate Info
+                const statusDiv = document.getElementById('active-run-status');
+                if (!statusDiv) {
+                    const statusContainer = document.createElement('div');
+                    statusContainer.id = 'active-run-status';
+                    statusContainer.style.marginTop = '0.5rem';
+                    statusContainer.style.fontSize = '0.9rem';
+                    statusContainer.style.fontWeight = '600';
+                    document.querySelector('.active-run-content > div').appendChild(statusContainer);
+                }
+
+                const runStatus = data.active_run.status || 'RUNNING';
+                const statusEl = document.getElementById('active-run-status');
+
+                let statusHtml = `<span style="color: ${runStatus === 'PAUSED' ? 'var(--accent-red)' : 'var(--accent-green)'}">${runStatus}</span>`;
+
+                if (isOnline && runStatus !== 'FINISHED' && runStatus !== 'ABORTED') {
+                    statusHtml += ` <span style="color: var(--text-secondary); margin-left: 10px;">• <span style="color: var(--accent-purple)">SPECTATE NOW</span> (Server Online)</span>`;
+                }
+                statusEl.innerHTML = statusHtml;
+
+                // Start local timer
+                // Prefer start_time, but if missing, we can't really show a timer unless we have duration
+                if (!liveTimerInterval && data.active_run.start_time) {
+                    const startTime = data.active_run.start_time;
+                    updateLiveTimer(startTime);
+                    liveTimerInterval = setInterval(() => updateLiveTimer(startTime), 1000);
+                }
+            } else {
+                banner.style.display = 'none';
+                if (liveTimerInterval) {
+                    clearInterval(liveTimerInterval);
+                    liveTimerInterval = null;
+                }
+            }
+
+            // Leaderboard
+            const tbody = document.getElementById('leaderboard-body');
+            tbody.innerHTML = '';
+            if (data.leaderboard && Array.isArray(data.leaderboard) && data.leaderboard.length > 0) {
+                data.leaderboard.forEach((run, index) => {
+                    const tr = document.createElement('tr');
+                    const players = getPlayerNames(run);
+                    // Use ended_at or solved_at
+                    const dateVal = run.ended_at || run.solved_at;
+                    const dateStr = dateVal ? new Date(dateVal).toLocaleDateString() : '-';
+
+                    tr.innerHTML = `
+                        <td class="rank">#${index + 1}</td>
+                        <td class="player-name">${players}</td>
+                        <td class="time">${run.duration_formatted || 'N/A'}</td>
+                        <td style="color: var(--text-secondary)">${dateStr}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } else {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">No completed runs yet</td></tr>';
+            }
+
+            // Recent Runs
+            const recentGrid = document.getElementById('recent-runs-grid');
+            recentGrid.innerHTML = '';
+
+            let runsToShow = [];
+            if (data.recent_runs && Array.isArray(data.recent_runs)) {
+                runsToShow = [...data.recent_runs];
+            }
+
+            // If there is an active run, prepend it to the list if it's not already there
+            if (data.active_run) {
+                const activeId = data.active_run.id || data.active_run.run_id;
+                const exists = runsToShow.find(r => (r.id || r.run_id) === activeId);
+                if (!exists) {
+                    runsToShow.unshift(data.active_run);
+                }
+            }
+
+            if (runsToShow.length > 0) {
+                runsToShow.forEach(run => {
+                    const card = document.createElement('div');
+                    card.className = 'run-card';
+                    const isFinished = run.status === 'FINISHED' || !!run.ended_at;
+                    const players = getPlayerNames(run);
+                    // Use start_time or ended_at
+                    const dateVal = run.start_time || run.ended_at;
+                    const dateStr = dateVal ? new Date(dateVal).toLocaleString() : 'Unknown Date';
+
+                    // Status color
+                    let statusColor = 'var(--text-secondary)';
+                    if (isFinished) statusColor = 'var(--accent-green)';
+                    else if (run.status === 'RUNNING') statusColor = 'var(--accent-purple)';
+                    else if (run.status === 'PAUSED') statusColor = 'var(--accent-red)';
+
+                    card.innerHTML = `
+                        <div class="run-info">
+                            <h4>${players}</h4>
+                            <div class="run-date">${dateStr}</div>
+                        </div>
+                        <div class="run-time" style="color: ${statusColor}">
+                            ${isFinished ? (run.duration_formatted || 'Done') : (run.status || 'IN PROGRESS')}
+                        </div>
+                    `;
+                    recentGrid.appendChild(card);
+                });
+            } else {
+                recentGrid.innerHTML = '<div style="color: var(--text-secondary); grid-column: 1/-1; text-align: center;">No runs recorded yet</div>';
+            }
+        }
+
+        function getPlayerNames(run) {
+            if (run.minecraft_name) return run.minecraft_name;
+            if (run.players) {
+                if (Array.isArray(run.players)) {
+                    return run.players.map(p => {
+                        if (typeof p === 'object' && p !== null) return p.name || 'Unknown';
+                        return p;
+                    }).join(', ');
+                }
+                return run.players;
+            }
+            return 'Unknown';
+        }
+
+        function updateLiveTimer(startTime) {
+            const now = Date.now();
+            const diff = now - startTime;
+            const seconds = Math.floor((diff / 1000) % 60);
+            const minutes = Math.floor((diff / (1000 * 60)) % 60);
+            const hours = Math.floor((diff / (1000 * 60 * 60)));
+
+            document.getElementById('live-timer').textContent =
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        // Initialize
+        init();
+    </script>
+</body>
+
+</html>
