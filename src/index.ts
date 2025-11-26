@@ -360,7 +360,17 @@ app.post('/api/run/reset', async (c) => {
             let attempts = 0;
             while (status !== 0 && attempts < 100) { // 0 = OFFLINE
                 console.log(`[API] Server status: ${status} (waiting for 0). Attempt ${attempts + 1}/100`);
-                await new Promise(resolve => setTimeout(resolve, 3000));
+
+                // If server is starting up again (Online, Starting, Restarting, Loading, Preparing), force stop
+                if ([1, 2, 4, 6, 10].includes(status)) {
+                    console.log(`[API] Server status ${status} indicates it is running/starting. Sending STOP again...`);
+                    await client.stopServer();
+                    // Wait a bit longer to let the stop command take effect
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                } else {
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                }
+
                 status = await client.getServerStatus();
                 attempts++;
             }
@@ -441,7 +451,15 @@ app.post('/api/server/restart', async (c) => {
             let status = await client.getServerStatus();
             let attempts = 0;
             while (status !== 0 && attempts < 100) {
-                await new Promise(resolve => setTimeout(resolve, 3000));
+                // If server is starting up again (Online, Starting, Restarting, Loading, Preparing), force stop
+                if ([1, 2, 4, 6, 10].includes(status)) {
+                    console.log(`[API] Server status ${status} indicates it is running/starting. Sending STOP again...`);
+                    await client.stopServer();
+                    // Wait a bit longer to let the stop command take effect
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                } else {
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                }
                 status = await client.getServerStatus();
                 attempts++;
             }
