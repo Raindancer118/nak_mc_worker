@@ -36,7 +36,6 @@ app.use('/api/*', async (c, next) => {
     }
 
     await next();
-    await next();
 });
 
 // Health Check
@@ -393,7 +392,16 @@ app.post('/api/run/reset', async (c) => {
 // Restart Server
 app.post('/api/server/restart', async (c) => {
     console.log('[API] /api/server/restart called');
-    const { seed, is_set_seed } = await c.req.json<{ seed?: string; is_set_seed?: boolean }>().catch(() => ({ seed: undefined, is_set_seed: undefined }));
+
+    let body: any = {};
+    try {
+        body = await c.req.json();
+    } catch (e) {
+        console.error('[API] Failed to parse JSON body:', e);
+    }
+    console.log(`[API] Restart Payload: ${JSON.stringify(body)}`);
+
+    const { seed, is_set_seed } = body;
 
     let serverId = c.env.EXA_SERVER_ID?.trim();
     const secret = c.env.EXA_SECRET?.trim();
@@ -448,6 +456,8 @@ app.post('/api/server/restart', async (c) => {
                     console.log('[API] Updated server.properties with new seed');
                 } catch (e) {
                     console.error('[API] Failed to update server.properties', e);
+                    console.error('[API] Aborting restart sequence to prevent wrong seed.');
+                    return;
                 }
 
                 // 4. Delete World
