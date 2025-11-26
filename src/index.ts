@@ -168,7 +168,7 @@ async function getStats(env: Bindings) {
     };
 }
 
-app.get('/', async (c) => {
+app.get('/status', async (c) => {
     console.log(`[Worker] Serving Status Page (SSR) to ${c.req.header('User-Agent') || 'Unknown'}`);
     try {
         const stats = await getStats(c.env);

@@ -23,7 +23,8 @@ Call this once to create the database tables.
 ### 1. Public Statistics
 Get global statistics and server status. No authentication required.
 
-- **URL**: `/public-stats`
+- **URL**: `/public-stats` (JSON API)
+- **URL**: `/status` (HTML Status Page)
 - **Method**: `GET`
 - **Body**: None
 - **Response**:
