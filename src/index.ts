@@ -20,15 +20,18 @@ app.use('/api/*', async (c, next) => {
     const apiKey = c.req.header('X-API-Key');
     const validKey = c.env.API_SECRET;
 
+    console.log(`[API] Incoming request: ${c.req.method} ${c.req.url}`);
+
     // If no secret is set in env, we might want to fail open or closed. 
     // Secure by default: fail if not set, or log a warning. 
     // For this task, we assume it must be set.
     if (!validKey) {
-        console.error("API_SECRET is not set in the environment!");
+        console.error("[API] API_SECRET is not set in the environment!");
         return c.json({ error: 'Server configuration error' }, 500);
     }
 
     if (!apiKey || apiKey !== validKey) {
+        console.warn(`[API] Unauthorized access attempt. Key provided: ${apiKey ? 'YES' : 'NO'}`);
         return c.json({ error: 'Unauthorized' }, 401);
     }
 
@@ -37,6 +40,7 @@ app.use('/api/*', async (c, next) => {
 
 // Initialize Database
 app.post('/api/admin/init-db', async (c) => {
+    console.log('[API] /api/admin/init-db called');
     try {
         await c.env.DB.batch([
             c.env.DB.prepare('DROP TABLE IF EXISTS cheat_logs'),
@@ -88,6 +92,7 @@ app.post('/api/admin/init-db', async (c) => {
 });
 
 app.get('/', async (c) => {
+    console.log('[API] / (root) called');
     try {
         const totalRuns = await c.env.DB.prepare('SELECT COUNT(*) as count FROM runs').first<{ count: number }>();
 
@@ -124,6 +129,7 @@ app.get('/', async (c) => {
 
 // Initialize a new run
 app.post('/api/run/init', async (c) => {
+    console.log('[API] /api/run/init called');
     const { run_id, type, seed, players } = await c.req.json<{
         run_id: string;
         type: 'SOLO' | 'TEAM';
@@ -158,6 +164,7 @@ app.post('/api/run/init', async (c) => {
 
 // Update run state (START, PAUSE, RESUME, ABORT)
 app.post('/api/run/update-state', async (c) => {
+    console.log('[API] /api/run/update-state called');
     const { run_id, action } = await c.req.json<{
         run_id: string;
         action: 'START' | 'PAUSE' | 'RESUME' | 'ABORT';
@@ -207,6 +214,7 @@ app.post('/api/run/update-state', async (c) => {
 
 // Log cheat suspicion
 app.post('/api/run/cheat', async (c) => {
+    console.log('[API] /api/run/cheat called');
     const { run_id, player_name, details } = await c.req.json<{
         run_id: string;
         player_name: string;
@@ -228,10 +236,12 @@ app.post('/api/run/cheat', async (c) => {
 
 // Reset World and Restart Server
 app.post('/api/run/reset', async (c) => {
+    console.log('[API] /api/run/reset called');
     let serverId = c.env.EXA_SERVER_ID?.trim();
     const secret = c.env.EXA_SECRET?.trim();
 
     if (!serverId || !secret) {
+        console.error('[API] Exaroton configuration missing');
         return c.json({ error: 'Exaroton configuration missing' }, 500);
     }
 
@@ -242,37 +252,45 @@ app.post('/api/run/reset', async (c) => {
 
     try {
         // 1. Stop Server
+        console.log('[API] Stopping server...');
         await client.stopServer();
 
         // 2. Wait for Offline
+        console.log('[API] Waiting for server to be OFFLINE...');
         let status = await client.getServerStatus();
         while (status !== 0) { // 0 = OFFLINE
+            console.log(`[API] Server status: ${status} (waiting for 0)`);
             await new Promise(resolve => setTimeout(resolve, 2000));
             status = await client.getServerStatus();
         }
+        console.log('[API] Server is OFFLINE');
 
         // 3. Delete World
         // Note: Exaroton might require specific paths. Usually 'world' is the folder.
+        console.log('[API] Deleting world files...');
         try {
-            await client.deleteFile('world');
-            await client.deleteFile('world_nether');
-            await client.deleteFile('world_the_end');
+            await client.deleteRecursive('world');
+            await client.deleteRecursive('world_nether');
+            await client.deleteRecursive('world_the_end');
         } catch (e) {
-            console.warn('Failed to delete some world files', e);
+            console.warn('[API] Failed to delete some world files', e);
         }
 
         // 4. Start Server
+        console.log('[API] Starting server...');
         await client.startServer();
 
+        console.log('[API] Reset initiated successfully');
         return c.json({ success: true, message: 'Server reset initiated' });
     } catch (e) {
-        console.error(e);
+        console.error('[API] Failed to reset server:', e);
         return c.json({ error: 'Failed to reset server' }, 500);
     }
 });
 
 // Finish run
 app.post('/api/run/finish', async (c) => {
+    console.log('[API] /api/run/finish called');
     const { run_id } = await c.req.json<{ run_id: string }>();
 
     try {
@@ -321,6 +339,7 @@ app.post('/api/run/finish', async (c) => {
 // Get stats for a run
 app.get('/api/run/:run_id/stats', async (c) => {
     const run_id = c.req.param('run_id');
+    console.log(`[API] /api/run/${run_id}/stats called`);
     try {
         const stats = await calculateStats(c.env.DB, run_id);
         return c.json(stats);
@@ -332,6 +351,7 @@ app.get('/api/run/:run_id/stats', async (c) => {
 // Check if seed is solved
 app.get('/api/seed/:seed/check', async (c) => {
     const seed = c.req.param('seed');
+    console.log(`[API] /api/seed/${seed}/check called`);
     const result = await c.env.DB.prepare('SELECT 1 FROM solved_seeds WHERE seed = ?').bind(seed).first();
     return c.json({ solved: !!result });
 });
