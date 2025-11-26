@@ -397,12 +397,27 @@ app.post('/api/run/reset', async (c) => {
                 if (!seedUpdated) {
                     newLines.push(`level-seed=`);
                 }
-                await client.uploadFile('server.properties', newLines.join('\n'));
+
+                const newContent = newLines.join('\n');
+
+                // Strategy: Delete then Upload to ensure update
+                console.log('[API] Deleting old server.properties...');
+                await client.deleteFile('server.properties');
+
+                console.log('[API] Uploading new server.properties...');
+                await client.uploadFile('server.properties', newContent);
                 console.log('[API] Seed cleared.');
+
+                // Verify
+                const checkContent = await client.getFileContent('server.properties');
+                if (checkContent.includes('level-seed=') && !checkContent.match(/level-seed=.+/)) {
+                    console.log('[API] Verification successful: seed cleared.');
+                } else {
+                    console.error('[API] Verification FAILED: seed might not be cleared.');
+                }
             } catch (e) {
                 console.error('[API] Failed to clear seed:', e);
             }
-
             // 4. Start Server
             console.log('[API] Starting server...');
             await client.startServer();
