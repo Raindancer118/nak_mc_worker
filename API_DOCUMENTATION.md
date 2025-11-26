@@ -9,6 +9,17 @@ All API requests must include the `X-API-Key` header.
 
 ## Endpoints
 
+### 0. Initialize Database (Admin)
+Call this once to create the database tables.
+
+- **URL**: `/api/admin/init-db`
+- **Method**: `POST`
+- **Body**: None
+- **Response**:
+```json
+{ "success": true, "message": "Database initialized" }
+```
+
 ### 1. Initialize Run
 Call this when the speedrun is set up (team/solo selected).
 
