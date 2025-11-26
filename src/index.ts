@@ -2,6 +2,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { ExarotonClient } from './exaroton';
+import { getHtml } from './html';
 
 type Bindings = {
     DB: D1Database;
@@ -49,7 +50,8 @@ app.post('/api/admin/init-db', async (c) => {
                 seed TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'CREATED',
                 created_at INTEGER NOT NULL,
-                ended_at INTEGER
+                ended_at INTEGER,
+                duration INTEGER
             )`),
             c.env.DB.prepare(`CREATE TABLE players (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -85,7 +87,40 @@ app.post('/api/admin/init-db', async (c) => {
     }
 });
 
-app.get('/', (c) => c.text('NAK Minecraft Speedrun Worker is running!'));
+app.get('/', async (c) => {
+    try {
+        const totalRuns = await c.env.DB.prepare('SELECT COUNT(*) as count FROM runs').first<{ count: number }>();
+
+        const bestRun = await c.env.DB.prepare(`
+            SELECT r.duration, p.minecraft_name 
+            FROM runs r 
+            JOIN players p ON r.id = p.run_id 
+            WHERE r.status = 'FINISHED' AND r.duration IS NOT NULL AND p.role = 'RUNNER'
+            ORDER BY r.duration ASC 
+            LIMIT 1
+        `).first<{ duration: number; minecraft_name: string }>();
+
+        const lastRun = await c.env.DB.prepare(`
+            SELECT r.duration, p.minecraft_name 
+            FROM runs r 
+            JOIN players p ON r.id = p.run_id 
+            WHERE r.status = 'FINISHED' AND r.duration IS NOT NULL AND p.role = 'RUNNER'
+            ORDER BY r.ended_at DESC 
+            LIMIT 1
+        `).first<{ duration: number; minecraft_name: string }>();
+
+        return c.html(getHtml({
+            totalRuns: totalRuns?.count || 0,
+            bestTime: bestRun ? formatDuration(bestRun.duration) : '--:--',
+            bestPlayer: bestRun?.minecraft_name || '-',
+            lastRunTime: lastRun ? formatDuration(lastRun.duration) : '--:--',
+            lastRunPlayer: lastRun?.minecraft_name || '-'
+        }));
+    } catch (e) {
+        console.error(e);
+        return c.text('NAK Minecraft Speedrun Worker is running! (Stats unavailable)');
+    }
+});
 
 // Initialize a new run
 app.post('/api/run/init', async (c) => {
@@ -270,6 +305,11 @@ app.post('/api/run/finish', async (c) => {
 
         // 4. Calculate stats
         const stats = await calculateStats(c.env.DB, run_id);
+
+        // 5. Update run with duration
+        await c.env.DB.prepare('UPDATE runs SET duration = ? WHERE id = ?')
+            .bind(stats.duration_ms, run_id)
+            .run();
 
         return c.json({ success: true, stats });
     } catch (e) {
