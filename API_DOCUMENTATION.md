@@ -1,6 +1,11 @@
 # NAK Minecraft Speedrun API Documentation
 
-Base URL: `https://nak-server-worker.<your-subdomain>.workers.dev` (or wherever deployed)
+Base URL: `https://mc-worker.raindancer118.de` (or wherever deployed)
+
+## Authentication
+All API requests must include the `X-API-Key` header.
+- **Header**: `X-API-Key: <API_SECRET>`
+- **Response if missing/invalid**: `401 Unauthorized`
 
 ## Endpoints
 
