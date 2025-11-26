@@ -1,4 +1,4 @@
-name = "nak-server-worker"
+name = "nak-mc-worker"
 main = "src/index.ts"
 compatibility_date = "2024-02-08"
 
